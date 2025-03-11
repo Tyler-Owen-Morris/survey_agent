@@ -6,21 +6,31 @@ import { Message } from "@/hooks/use-chat";
 import { MessageItem } from "./message-item";
 import { useChat } from "@/hooks/use-chat";
 import { Loader2 } from "lucide-react";
+import { SurveyGenerationResponse } from "@server/openai";
 
 export function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const { generateSurvey, isGenerating } = useChat();
+  const { sendToAI, isGenerating } = useChat();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isGenerating) return;
 
     const userMessage: Message = { role: "user", content: input };
-    setMessages([...messages, userMessage]);
+    setMessages((prevMessages) => [...prevMessages, userMessage]);
     setInput("");
 
-    generateSurvey(input);
+    try {
+      const aiResponse = await sendToAI(input) as SurveyGenerationResponse;
+      console.log("AI response:", aiResponse.choices[0]);
+      if (aiResponse && aiResponse.choices && aiResponse.choices[0].message) {
+        const aiMessage: Message = { role: "assistant", content: aiResponse.choices[0].message.content };
+        setMessages((prevMessages) => [...prevMessages, aiMessage]);
+      }
+    } catch (error) {
+      console.error("Failed to get response from AI:", error);
+    }
   };
 
   return (
@@ -39,6 +49,12 @@ export function ChatInterface() {
           <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit(e);
+              }
+            }}
             placeholder="Describe the survey you want to create..."
             disabled={isGenerating}
           />
@@ -46,10 +62,10 @@ export function ChatInterface() {
             {isGenerating ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Generating...
+                Processing...
               </>
             ) : (
-              "Generate Survey"
+              "Send"
             )}
           </Button>
         </form>

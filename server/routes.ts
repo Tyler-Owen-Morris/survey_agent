@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
-import { generateSurvey, calculateTokenUsage } from "./openai";
+import { sendToAI, calculateTokenUsage } from "./openai";
 import { QualtricsAPI } from "./qualtrics";
 import { storage } from "./storage";
 import { qualtricsSettingsSchema } from "@shared/schema";
@@ -59,7 +59,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Insufficient token balance" });
       }
 
-      const surveyData = await generateSurvey(prompt);
+      const surveyData = await sendToAI(prompt);
 
       const api = new QualtricsAPI(
         user.qualtricsApiToken,
@@ -90,6 +90,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const surveys = await storage.getUserSurveys(req.user.id);
       res.json(surveys);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Handle OpenAI interaction
+  app.post("/api/openai/send", async (req, res) => {
+    const { prompt } = req.body;
+    if (!prompt) {
+      return res.status(400).json({ message: "Prompt is required" });
+    }
+
+    try {
+      const aiResponse = await sendToAI(prompt);
+      res.json(aiResponse);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }

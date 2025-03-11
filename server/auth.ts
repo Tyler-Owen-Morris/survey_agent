@@ -6,10 +6,11 @@ import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser } from "@shared/schema";
+import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 
 declare global {
   namespace Express {
-    interface User extends SelectUser {}
+    interface User extends SelectUser { }
   }
 }
 
@@ -30,7 +31,8 @@ async function comparePasswords(supplied: string, stored: string) {
 
 export function setupAuth(app: Express) {
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.SESSION_SECRET!,
+    //secret: process.env.SESSION_SECRET!,
+    secret: "secret",
     resave: false,
     saveUninitialized: false,
     store: storage.sessionStore,
@@ -51,6 +53,17 @@ export function setupAuth(app: Express) {
       }
     }),
   );
+
+  passport.use(new GoogleStrategy({
+    clientID: process.env.GOOGLE_CLIENT_ID!,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    callbackURL: "/api/auth/google/callback"
+  },
+    async (accessToken: string, refreshToken: string, profile: any, done: (error: any, user?: Express.User | false) => void) => {
+      const user = await storage.findOrCreateUserByGoogleProfile(profile);
+      return done(null, user);
+    }
+  ));
 
   passport.serializeUser((user, done) => done(null, user.id));
   passport.deserializeUser(async (id: number, done) => {
@@ -90,4 +103,15 @@ export function setupAuth(app: Express) {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     res.json(req.user);
   });
+
+  app.get("/api/auth/google", passport.authenticate("google", {
+    scope: ["profile", "email"]
+  }));
+
+  app.get("/api/auth/google/callback",
+    passport.authenticate("google", { failureRedirect: "/login" }),
+    (req, res) => {
+      res.redirect("/");
+    }
+  );
 }

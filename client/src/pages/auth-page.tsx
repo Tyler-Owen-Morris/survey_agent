@@ -16,7 +16,7 @@ import { Loader2 } from "lucide-react";
 
 export default function AuthPage() {
   const [, setLocation] = useLocation();
-  const { user, loginMutation, registerMutation } = useAuth();
+  const { user, loginMutation, registerMutation, googleLoginMutation } = useAuth();
 
   useEffect(() => {
     if (user) {
@@ -85,6 +85,12 @@ export default function AuthPage() {
                     )}
                   </Button>
                 </form>
+                <Button
+                  onClick={() => googleLoginMutation.mutate()}
+                  className="w-full mt-4"
+                >
+                  Login with Google
+                </Button>
               </TabsContent>
 
               <TabsContent value="register">
@@ -131,6 +137,12 @@ export default function AuthPage() {
                     )}
                   </Button>
                 </form>
+                <Button
+                  onClick={() => googleLoginMutation.mutate()}
+                  className="w-full mt-4"
+                >
+                  Register with Google
+                </Button>
               </TabsContent>
             </Tabs>
           </CardContent>
