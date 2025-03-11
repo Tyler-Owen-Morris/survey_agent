@@ -2,6 +2,11 @@ import OpenAI from "openai";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import * as dotenv from "dotenv";
+
+dotenv.config();
+
+console.log("env:", process.env);
 
 if (!process.env.OPENAI_API_KEY) {
   throw new Error("Missing OPENAI_API_KEY environment variable");

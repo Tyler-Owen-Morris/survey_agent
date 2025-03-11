@@ -80,13 +80,13 @@ export default function HomePage() {
           </div>
 
           {/* Token Balance */}
-          <div className="mb-8 text-center">
+          {/* <div className="mb-8 text-center">
             <div className="inline-block px-4 py-2 bg-primary/10 rounded-lg">
               <span className="text-sm font-medium">
                 Available Tokens: {user?.tokenBalance}
               </span>
             </div>
-          </div>
+          </div> */}
 
           {/* Chat Interface */}
           <ChatInterface />
