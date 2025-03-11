@@ -9,12 +9,14 @@ const MemoryStore = createMemoryStore(session);
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  getUserByGoogleId(googleId: string): Promise<User | undefined>;
+  createUser(user: Partial<User>): Promise<User>;
   updateQualtricsCredentials(
     userId: number,
     credentials: z.infer<typeof qualtricsSettingsSchema>
   ): Promise<void>;
   deductTokens(userId: number, amount: number): Promise<void>;
+  addTokens(userId: number, amount: number): Promise<void>;
   createSurvey(survey: Omit<Survey, "id" | "createdAt">): Promise<Survey>;
   getUserSurveys(userId: number): Promise<Survey[]>;
   sessionStore: session.Store;
@@ -47,15 +49,24 @@ export class MemStorage implements IStorage {
     );
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
+  async getUserByGoogleId(googleId: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(
+      (user) => user.googleId === googleId
+    );
+  }
+
+  async createUser(userData: Partial<User>): Promise<User> {
     const id = this.currentId++;
     const user: User = {
-      ...insertUser,
       id,
+      username: userData.username!,
+      password: userData.password || null,
+      googleId: userData.googleId || null,
+      email: userData.email || null,
       qualtricsApiToken: null,
       qualtricsDatacenter: null,
       qualtricsBrandId: null,
-      tokenBalance: 100, // Give new users some free tokens
+      tokenBalance: 10000,
       createdAt: new Date(),
     };
     this.users.set(id, user);
@@ -83,6 +94,16 @@ export class MemStorage implements IStorage {
     this.users.set(userId, {
       ...user,
       tokenBalance: user.tokenBalance - amount,
+    });
+  }
+
+  async addTokens(userId: number, amount: number): Promise<void> {
+    const user = await this.getUser(userId);
+    if (!user) throw new Error("User not found");
+
+    this.users.set(userId, {
+      ...user,
+      tokenBalance: user.tokenBalance + amount,
     });
   }
 

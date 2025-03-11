@@ -1,71 +1,118 @@
 import OpenAI from "openai";
-import fs from "fs";
+import fs from "fs/promises";
 import path from "path";
-import { fileURLToPath } from 'url';
+import { fileURLToPath } from "url";
 
-if (!process.env.NEXT_PUBLIC_OPENAI_API_KEY) {
-  throw new Error("Missing NEXT_PUBLIC_OPENAI_API_KEY environment variable");
+if (!process.env.OPENAI_API_KEY) {
+  throw new Error("Missing OPENAI_API_KEY environment variable");
 }
 
 // the newest OpenAI model is "gpt-4o" which was released May 13, 2024
-const openai = new OpenAI({ apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-
-// Convert import.meta.url to a file path
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load chat context from JSON file
-const chatContextPath = path.resolve(__dirname, "chat-context.json");
-const chatContext = JSON.parse(fs.readFileSync(chatContextPath, "utf-8"));
-
-export interface SurveyGenerationResponse {
-  id: string;
-  object: string;
-  created: number;
-  model: string;
-  choices: Array<{
-    index: number;
-    message: {
-      role: string;
-      content: string;
-    };
-    logprobs: null | any;
-    finish_reason: string;
-  }>;
-  usage: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-    prompt_tokens_details: {
-      cached_tokens: number;
-      audio_tokens: number;
-    };
-    completion_tokens_details: {
-      reasoning_tokens: number;
-      audio_tokens: number;
-      accepted_prediction_tokens: number;
-      rejected_prediction_tokens: number;
-    };
-  };
-  service_tier: string;
-  system_fingerprint: string;
+export interface Message {
+  role: "user" | "assistant";
+  content: string;
 }
 
-export async function sendToAI(prompt: string): Promise<SurveyGenerationResponse> {
+export interface ChatCompletionResult {
+  message: string;
+  tokensUsed: number;
+}
+
+// Load the system prompt from JSON file
+async function loadSystemPrompt(): Promise<Message[]> {
   try {
-    console.log("Sending to AI");
+    const promptPath = path.join(__dirname, "prompts", "survey-chat.json");
+    const promptData = await fs.readFile(promptPath, "utf-8");
+    const { conversation } = JSON.parse(promptData);
+    return conversation;
+  } catch (error: any) {
+    console.error("Error loading system prompt:", error.message);
+    // Fallback to basic prompt if file can't be loaded
+    return [
+      {
+        role: "system",
+        content: "You are a helpful survey design expert. Help users design effective surveys by asking clarifying questions and providing suggestions.",
+      },
+    ];
+  }
+}
+
+export async function chatCompletion(messages: Message[]): Promise<ChatCompletionResult> {
+  try {
+    const systemPrompt = await loadSystemPrompt();
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [...systemPrompt, ...messages],
+    });
+
+    const content = response.choices[0].message.content;
+    if (!content) {
+      throw new Error("OpenAI returned empty response");
+    }
+
+    // Get total tokens used from the response
+    const tokensUsed = response.usage?.total_tokens || 0;
+
+    return {
+      message: content,
+      tokensUsed,
+    };
+  } catch (error: any) {
+    throw new Error(`Chat completion failed: ${error.message}`);
+  }
+}
+
+// Keep the existing survey generation code but add token tracking
+export interface SurveyGenerationResponse {
+  title: string;
+  description: string;
+  questions: Array<{
+    type: string;
+    text: string;
+    choices?: string[];
+    validation?: {
+      required: boolean;
+      min?: number;
+      max?: number;
+    };
+  }>;
+}
+
+export async function generateSurvey(prompt: string): Promise<{
+  data: SurveyGenerationResponse;
+  tokensUsed: number;
+}> {
+  try {
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
-        ...chatContext,
+        {
+          role: "system",
+          content: "You are a survey design expert. Generate a survey based on the user's requirements. Output should be a JSON object with title, description, and questions array.",
+        },
         { role: "user", content: prompt },
       ],
+      response_format: { type: "json_object" },
     });
-    console.log("Response received from AI", response.choices[0].message);
 
-    // Directly return the response
-    return response as SurveyGenerationResponse;
+    const content = response.choices[0].message.content;
+    if (!content) {
+      throw new Error("OpenAI returned empty response");
+    }
+
+    const tokensUsed = response.usage?.total_tokens || 0;
+    const result = JSON.parse(content);
+
+    return {
+      data: result as SurveyGenerationResponse,
+      tokensUsed,
+    };
   } catch (error: any) {
     throw new Error(`Failed to generate survey: ${error.message}`);
   }

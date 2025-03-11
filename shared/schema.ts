@@ -5,11 +5,13 @@ import { z } from "zod";
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
-  password: text("password").notNull(),
+  password: text("password"),  // Make password optional for OAuth users
+  googleId: text("google_id").unique(),  // Add Google ID field
+  email: text("email").unique(),  // Add email field
   qualtricsApiToken: text("qualtrics_api_token"),
   qualtricsDatacenter: text("qualtrics_datacenter"),
   qualtricsBrandId: text("qualtrics_brand_id"),
-  tokenBalance: integer("token_balance").default(0).notNull(),
+  tokenBalance: integer("token_balance").default(10000).notNull(),  // Start with 10k tokens
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

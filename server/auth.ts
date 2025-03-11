@@ -1,16 +1,16 @@
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
+import { Strategy as GoogleStrategy, Profile } from "passport-google-oauth20";
 import { Express } from "express";
 import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser } from "@shared/schema";
-import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 
 declare global {
   namespace Express {
-    interface User extends SelectUser { }
+    interface User extends SelectUser {}
   }
 }
 
@@ -31,8 +31,7 @@ async function comparePasswords(supplied: string, stored: string) {
 
 export function setupAuth(app: Express) {
   const sessionSettings: session.SessionOptions = {
-    //secret: process.env.SESSION_SECRET!,
-    secret: "secret",
+    secret: process.env.SESSION_SECRET!,
     resave: false,
     saveUninitialized: false,
     store: storage.sessionStore,
@@ -43,10 +42,11 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
+  // Local Strategy
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       const user = await storage.getUserByUsername(username);
-      if (!user || !(await comparePasswords(password, user.password))) {
+      if (!user || !user.password || !(await comparePasswords(password, user.password))) {
         return done(null, false);
       } else {
         return done(null, user);
@@ -54,16 +54,38 @@ export function setupAuth(app: Express) {
     }),
   );
 
-  passport.use(new GoogleStrategy({
-    clientID: process.env.GOOGLE_CLIENT_ID!,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    callbackURL: "/api/auth/google/callback"
-  },
-    async (accessToken: string, refreshToken: string, profile: any, done: (error: any, user?: Express.User | false) => void) => {
-      const user = await storage.findOrCreateUserByGoogleProfile(profile);
-      return done(null, user);
-    }
-  ));
+  // Google Strategy
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    throw new Error("Missing Google OAuth credentials");
+  }
+
+  passport.use(
+    new GoogleStrategy(
+      {
+        clientID: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        callbackURL: "/api/auth/google/callback",
+      },
+      async (_accessToken: string, _refreshToken: string, profile: Profile, done: any) => {
+        try {
+          let user = await storage.getUserByGoogleId(profile.id);
+
+          if (!user) {
+            // Create new user if doesn't exist
+            user = await storage.createUser({
+              username: profile.emails![0].value.split("@")[0], // Use email prefix as username
+              email: profile.emails![0].value,
+              googleId: profile.id,
+            });
+          }
+
+          done(null, user);
+        } catch (error) {
+          done(error as Error);
+        }
+      }
+    )
+  );
 
   passport.serializeUser((user, done) => done(null, user.id));
   passport.deserializeUser(async (id: number, done) => {
@@ -92,6 +114,17 @@ export function setupAuth(app: Express) {
     res.status(200).json(req.user);
   });
 
+  // Google OAuth routes
+  app.get("/api/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+
+  app.get(
+    "/api/auth/google/callback",
+    passport.authenticate("google", { failureRedirect: "/auth" }),
+    (req, res) => {
+      res.redirect("/");
+    }
+  );
+
   app.post("/api/logout", (req, res, next) => {
     req.logout((err) => {
       if (err) return next(err);
@@ -103,15 +136,4 @@ export function setupAuth(app: Express) {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     res.json(req.user);
   });
-
-  app.get("/api/auth/google", passport.authenticate("google", {
-    scope: ["profile", "email"]
-  }));
-
-  app.get("/api/auth/google/callback",
-    passport.authenticate("google", { failureRedirect: "/login" }),
-    (req, res) => {
-      res.redirect("/");
-    }
-  );
 }

@@ -15,7 +15,6 @@ type AuthContextType = {
   loginMutation: UseMutationResult<SelectUser, Error, LoginData>;
   logoutMutation: UseMutationResult<void, Error, void>;
   registerMutation: UseMutationResult<SelectUser, Error, InsertUser>;
-  googleLoginMutation: UseMutationResult<void, Error, void>;
 };
 
 type LoginData = Pick<InsertUser, "username" | "password">;
@@ -82,12 +81,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  const googleLoginMutation = useMutation({
-    mutationFn: async () => {
-      window.location.href = "/api/auth/google";
-    },
-  });
-
   return (
     <AuthContext.Provider
       value={{
@@ -97,7 +90,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loginMutation,
         logoutMutation,
         registerMutation,
-        googleLoginMutation,
       }}
     >
       {children}

@@ -1,5 +1,6 @@
 import { Message } from "@/hooks/use-chat";
 import { cn } from "@/lib/utils";
+import ReactMarkdown from "react-markdown";
 
 export function MessageItem({ message }: { message: Message }) {
   const isUser = message.role === "user";
@@ -19,7 +20,12 @@ export function MessageItem({ message }: { message: Message }) {
             : "bg-muted"
         )}
       >
-        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+        <div className={cn(
+          "prose prose-sm dark:prose-invert max-w-none",
+          isUser ? "text-primary-foreground" : "text-foreground"
+        )}>
+          <ReactMarkdown>{message.content}</ReactMarkdown>
+        </div>
       </div>
     </div>
   );

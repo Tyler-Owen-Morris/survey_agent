@@ -2,19 +2,27 @@ import { ChatInterface } from "@/components/chat/chat-interface";
 import { QualtricsSettings } from "@/components/settings/qualtrics-settings";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { LogOut } from "lucide-react";
+import { LogOut, Settings, CreditCard, Database } from "lucide-react";
 import { useState } from "react";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import AccountPage from "./account-page";
 
 export default function HomePage() {
   const { user, logoutMutation } = useAuth();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-background">
@@ -25,28 +33,31 @@ export default function HomePage() {
             Survey Builder
           </h1>
           <div className="flex items-center gap-4">
-            <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
-              <SheetTrigger asChild>
-                <Button variant="outline">Settings</Button>
-              </SheetTrigger>
-              <SheetContent>
-                <SheetHeader>
-                  <SheetTitle>Settings</SheetTitle>
-                </SheetHeader>
-                <div className="mt-4">
-                  <QualtricsSettings />
-                </div>
-              </SheetContent>
-            </Sheet>
-            
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => logoutMutation.mutate()}
-              disabled={logoutMutation.isPending}
-            >
-              <LogOut className="h-5 w-5" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setAccountOpen(true)}>
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  Account & Billing
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
+                  <Database className="mr-2 h-4 w-4" />
+                  Qualtrics Settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => logoutMutation.mutate()}
+                  disabled={logoutMutation.isPending}
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Logout
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </header>
@@ -81,6 +92,30 @@ export default function HomePage() {
           <ChatInterface />
         </div>
       </main>
+
+      {/* Qualtrics Settings Sheet */}
+      <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Qualtrics Settings</SheetTitle>
+          </SheetHeader>
+          <div className="mt-4">
+            <QualtricsSettings />
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Account Sheet */}
+      <Sheet open={accountOpen} onOpenChange={setAccountOpen}>
+        <SheetContent className="w-full sm:max-w-xl flex flex-col h-full">
+          <SheetHeader className="flex-shrink-0">
+            <SheetTitle>Account & Billing</SheetTitle>
+          </SheetHeader>
+          <div className="flex-1 overflow-y-auto mt-4 pr-6">
+            <AccountPage />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
